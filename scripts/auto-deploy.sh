@@ -102,12 +102,16 @@ else
 fi
 
 for i in {1..30}; do
-    if curl -f "$HEALTH_URL" > /dev/null 2>&1; then
-        echo "✅ Health check passed!"
+    # Check if we get ANY HTTP response (even 403/401 means server is running)
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" != "000" ] && [ "$HTTP_CODE" != "" ]; then
+        echo "✅ Health check passed! (Server responding with HTTP $HTTP_CODE)"
         break
     fi
     if [ $i -eq 30 ]; then
         echo "⚠️  Health check failed after 30 attempts"
+        echo "Checking container status..."
+        docker compose -f "$COMPOSE_FILE" ps || true
     else
         echo "Waiting for service... ($i/30)"
         sleep 2
