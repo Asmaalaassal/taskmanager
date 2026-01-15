@@ -90,8 +90,31 @@ export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-your-org/ticket-manager}"
 # Stop existing containers
 docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
 
-# Start services (will build if images don't exist, never pull to avoid auth prompts)
-docker compose -f "$COMPOSE_FILE" up -d --build --pull never
+# Build images first (explicitly, to avoid pull attempts)
+echo "Building Docker images (this may take a few minutes)..."
+if [ "$ENVIRONMENT" = "test" ]; then
+    if [ -z "$BACKEND_TEST_IMAGE" ]; then
+        echo "Building backend image..."
+        docker compose -f "$COMPOSE_FILE" build backend-test
+    fi
+    if [ -z "$FRONTEND_TEST_IMAGE" ]; then
+        echo "Building frontend image..."
+        docker compose -f "$COMPOSE_FILE" build frontend-test
+    fi
+else
+    if [ -z "$BACKEND_PROD_IMAGE" ]; then
+        echo "Building backend image..."
+        docker compose -f "$COMPOSE_FILE" build backend-prod
+    fi
+    if [ -z "$FRONTEND_PROD_IMAGE" ]; then
+        echo "Building frontend image..."
+        docker compose -f "$COMPOSE_FILE" build frontend-prod
+    fi
+fi
+
+# Start services (no build flag needed, images are already built or exist)
+echo "Starting services..."
+docker compose -f "$COMPOSE_FILE" up -d
 
 # Step 6: Wait for services
 echo "Step 6: Waiting for services to be ready..."

@@ -25,7 +25,7 @@ services:
     command: --default-authentication-plugin=mysql_native_password
 
   backend-prod:
-    image: ${BACKEND_PROD_IMAGE:-ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-backend-prod:latest}
+    image: ${BACKEND_PROD_IMAGE:-ticket-manager-backend-prod:local}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -50,7 +50,7 @@ services:
     restart: always
 
   frontend-prod:
-    image: ${FRONTEND_PROD_IMAGE:-ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-frontend-prod:latest}
+    image: ${FRONTEND_PROD_IMAGE:-ticket-manager-frontend-prod:local}
     build:
       context: ./frontend
       dockerfile: Dockerfile

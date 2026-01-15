@@ -22,7 +22,7 @@ services:
       retries: 5
 
   backend-test:
-    image: ${BACKEND_TEST_IMAGE:-ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-backend-test:latest}
+    image: ${BACKEND_TEST_IMAGE:-ticket-manager-backend-test:local}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
 
   frontend-test:
-    image: ${FRONTEND_TEST_IMAGE:-ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-frontend-test:latest}
+    image: ${FRONTEND_TEST_IMAGE:-ticket-manager-frontend-test:local}
     build:
       context: ./frontend
       dockerfile: Dockerfile
