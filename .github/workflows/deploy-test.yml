@@ -54,14 +54,14 @@ jobs:
 
       - name: Deploy to test server
         uses: appleboy/ssh-action@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.TEST_SERVER_HOST }}
           username: ${{ secrets.TEST_SERVER_USER }}
           password: ${{ secrets.TEST_SERVER_PASSWORD }}
           envs: GITHUB_TOKEN
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        script: |
+          script: |
             # Configure git to avoid prompts (use token if available)
             export GIT_TERMINAL_PROMPT=0
             export GIT_ASKPASS=/bin/echo
