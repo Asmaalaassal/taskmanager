@@ -59,11 +59,33 @@ jobs:
           username: ${{ secrets.TEST_SERVER_USER }}
           password: ${{ secrets.TEST_SERVER_PASSWORD }}
           script: |
+            # Configure git to avoid prompts (use token if available)
+            export GIT_TERMINAL_PROMPT=0
+            export GIT_ASKPASS=/bin/echo
+            GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+            REPO_URL="https://github.com/${{ github.repository }}.git"
+            
             # Navigate to repo or clone if it doesn't exist
             if [ ! -d /opt/ticket-manager ]; then
-              cd /opt && git clone https://github.com/${{ github.repository }}.git ticket-manager && cd ticket-manager
+              cd /opt
+              if [ -n "$GITHUB_TOKEN" ]; then
+                # Use token in URL for authentication
+                git clone https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.git ticket-manager
+              else
+                # Try without token (if repo is public)
+                git clone "$REPO_URL" ticket-manager 2>&1 || {
+                  echo "❌ Clone failed - repository might be private"
+                  exit 1
+                }
+              fi
+              cd ticket-manager
             else
               cd /opt/ticket-manager
+            fi
+            
+            # Update remote URL if token is available
+            if [ -n "$GITHUB_TOKEN" ]; then
+              git remote set-url origin https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.git 2>/dev/null || true
             fi
             
             # Show current state BEFORE update
@@ -71,6 +93,11 @@ jobs:
             echo "Current branch: $(git branch --show-current)"
             echo "Current commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
             echo "Remote URL: $(git remote get-url origin 2>/dev/null || echo 'none')"
+            
+            # Configure git to use token for authentication (if repo is private)
+            if [ -n "$GITHUB_TOKEN" ]; then
+              git remote set-url origin https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+            fi
             
             # Force update: remove all local changes and pull latest
             git fetch origin --prune --force 2>&1
@@ -96,21 +123,32 @@ jobs:
             
             # CRITICAL: Verify commits match after sync
             LOCAL_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-            REMOTE_COMMIT=$(git ls-remote origin develop 2>/dev/null | cut -f1 | cut -c1-7 || git ls-remote origin main 2>/dev/null | cut -f1 | cut -c1-7 || echo "unknown")
+            # Try with token if ls-remote fails
+            REMOTE_COMMIT=$(git ls-remote origin develop 2>/dev/null | cut -f1 | cut -c1-7 || git ls-remote origin main 2>/dev/null | cut -f1 | cut -c1-7 || echo "")
+            # If still empty, try direct GitHub API call
+            if [ -z "$REMOTE_COMMIT" ] && [ -n "$GITHUB_TOKEN" ]; then
+              REMOTE_COMMIT=$(curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/${{ github.repository }}/commits/develop 2>/dev/null | grep -o '"sha":"[^"]*' | head -1 | cut -d'"' -f4 | cut -c1-7 || echo "")
+            fi
+            REMOTE_COMMIT=${REMOTE_COMMIT:-"unknown"}
             
             echo "=== COMMIT VERIFICATION ==="
             echo "Local commit: $LOCAL_COMMIT"
             echo "Remote commit (from GitHub directly): $REMOTE_COMMIT"
             
             # If commits don't match OR if local commit is the old one, force re-clone
-            if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ] || [ "$LOCAL_COMMIT" = "8824cb6" ] || [ "$LOCAL_COMMIT" = "unknown" ]; then
+            if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ] || [ "$LOCAL_COMMIT" = "8824cb6" ] || [ "$LOCAL_COMMIT" = "unknown" ] || [ -z "$REMOTE_COMMIT" ]; then
               echo "⚠️ Commits don't match or server is on old commit! Forcing fresh clone..."
               cd /opt
               rm -rf ticket-manager
-              git clone https://github.com/${{ github.repository }}.git ticket-manager
-              cd ticket-manager
+              # Use token if available
+              if [ -n "$GITHUB_TOKEN" ]; then
+                git clone https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.git ticket-manager
+              else
+                git clone https://github.com/${{ github.repository }}.git ticket-manager
+              fi
+              cd ticket-manager || { echo "❌ Clone failed!"; exit 1; }
               git checkout develop 2>/dev/null || git checkout main 2>/dev/null || true
-              FRESH_COMMIT=$(git rev-parse --short HEAD)
+              FRESH_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
               echo "✅ Fresh clone complete. New commit: $FRESH_COMMIT"
               
               # Verify docker-compose has the fix
