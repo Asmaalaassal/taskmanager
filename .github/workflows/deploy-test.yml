@@ -61,10 +61,14 @@ jobs:
           script: |
             cd /opt/ticket-manager || (cd /opt && git clone https://github.com/${{ github.repository }}.git ticket-manager && cd ticket-manager)
             # Force hard reset to get latest code (discard any local changes)
-            git fetch origin
+            git fetch origin --prune --force
+            git fetch origin develop:develop --force 2>/dev/null || git fetch origin main:main --force 2>/dev/null || true
             git checkout develop 2>/dev/null || git checkout main 2>/dev/null || true
             git reset --hard origin/develop 2>/dev/null || git reset --hard origin/main 2>/dev/null || true
             git clean -fd
+            # Verify we have the latest commit
+            echo "Current commit: $(git rev-parse --short HEAD)"
+            echo "Latest commit on GitHub: $(git rev-parse --short origin/develop 2>/dev/null || git rev-parse --short origin/main 2>/dev/null || echo 'unknown')"
             # Verify script is updated
             echo "=== Script Version Check ==="
             if grep -q "Preparing for local build" scripts/auto-deploy.sh; then
@@ -73,6 +77,14 @@ jobs:
               echo "❌ OLD SCRIPT DETECTED - Forcing update..."
               rm -f scripts/auto-deploy.sh
               git checkout origin/develop scripts/auto-deploy.sh 2>/dev/null || git checkout origin/main scripts/auto-deploy.sh 2>/dev/null || true
+            fi
+            # Verify docker-compose file is updated (check for allowPublicKeyRetrieval)
+            echo "=== Docker Compose Version Check ==="
+            if grep -q "allowPublicKeyRetrieval=true" docker-compose.test.yml 2>/dev/null || grep -q "allowPublicKeyRetrieval=true" docker-compose.prod.yml 2>/dev/null; then
+              echo "✅ Latest docker-compose detected"
+            else
+              echo "❌ OLD DOCKER-COMPOSE DETECTED - Forcing update..."
+              git checkout origin/develop docker-compose.test.yml docker-compose.prod.yml 2>/dev/null || git checkout origin/main docker-compose.test.yml docker-compose.prod.yml 2>/dev/null || true
             fi
             chmod +x scripts/*.sh 2>/dev/null || true
             export GITHUB_REPOSITORY=${{ github.repository }}
