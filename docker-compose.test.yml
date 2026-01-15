@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  mysql-test:
+    image: mysql:8.0
+    container_name: ticket-mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ticket_system_test
+      MYSQL_USER: ticket_user
+      MYSQL_PASSWORD: ticket_pass
+    volumes:
+      - mysql-test-data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    networks:
+      - ticket-network-test
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend-test:
+    image: ${BACKEND_TEST_IMAGE:-ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-backend-test:latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ticket-backend-test
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-test:3306/ticket_system_test?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: ticket_user
+      SPRING_DATASOURCE_PASSWORD: ticket_pass
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_FLYWAY_ENABLED: true
+      SERVER_PORT: 8085
+      JWT_SECRET: ${JWT_SECRET:-test-secret-key-change-in-production}
+      JWT_EXPIRATION: 86400000
+    ports:
+      - "8086:8085"
+    depends_on:
+      mysql-test:
+        condition: service_healthy
+    networks:
+      - ticket-network-test
+    restart: unless-stopped
+
+  frontend-test:
+    image: ${FRONTEND_TEST_IMAGE:-ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-frontend-test:latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${API_URL:-http://localhost:8086/api}
+    container_name: ticket-frontend-test
+    environment:
+      - REACT_APP_API_URL=${API_URL:-http://localhost:8086/api}
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend-test
+    networks:
+      - ticket-network-test
+    restart: unless-stopped
+
+volumes:
+  mysql-test-data:
+    driver: local
+
+networks:
+  ticket-network-test:
+    driver: bridge

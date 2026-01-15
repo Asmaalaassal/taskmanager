@@ -28,3 +28,18 @@ frontend/.env.production
 .DS_Store
 Thumbs.db
 
+# Environment files
+.env
+.env.local
+.env.test
+.env.prod
+.env.*.local
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# Backups (on server)
+backups/
+*.sql
+*.sql.gz
