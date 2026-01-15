@@ -77,7 +77,20 @@ jobs:
           password: ${{ secrets.PROD_SERVER_PASSWORD }}
           script: |
             cd /opt/ticket-manager || (cd /opt && git clone https://github.com/${{ github.repository }}.git ticket-manager && cd ticket-manager)
-            git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || echo "Already up to date"
+            # Force hard reset to get latest code (discard any local changes)
+            git fetch origin
+            git checkout main 2>/dev/null || git checkout master 2>/dev/null || true
+            git reset --hard origin/main 2>/dev/null || git reset --hard origin/master 2>/dev/null || true
+            git clean -fd
+            # Verify script is updated
+            echo "=== Script Version Check ==="
+            if grep -q "Preparing for local build" scripts/auto-deploy.sh; then
+              echo "✅ Latest script detected"
+            else
+              echo "❌ OLD SCRIPT DETECTED - Forcing update..."
+              rm -f scripts/auto-deploy.sh
+              git checkout origin/main scripts/auto-deploy.sh 2>/dev/null || git checkout origin/master scripts/auto-deploy.sh 2>/dev/null || true
+            fi
             chmod +x scripts/*.sh 2>/dev/null || true
             export GITHUB_REPOSITORY=${{ github.repository }}
             ./scripts/auto-setup.sh prod || true
