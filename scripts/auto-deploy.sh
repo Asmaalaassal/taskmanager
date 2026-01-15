@@ -36,17 +36,23 @@ fi
 # Load environment variables
 source "$ENV_FILE" || { echo "❌ Failed to load $ENV_FILE"; exit 1; }
 
+# Export all variables for docker compose
+set -a  # Automatically export all variables
+source "$ENV_FILE"
+set +a  # Stop automatically exporting
+
 # Step 2: Backup database (production only)
 if [ "$ENVIRONMENT" = "prod" ]; then
     echo "Step 2: Creating database backup..."
-    if docker compose -f "$COMPOSE_FILE" ps mysql-prod 2>/dev/null | grep -q "Up"; then
+    if docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps mysql-prod 2>/dev/null | grep -q "Up"; then
         "${APP_DIR}/scripts/backup-database.sh" prod || echo "⚠️  Backup failed, continuing..."
     fi
 fi
 
 # Step 3: Stop existing containers
 echo "Step 3: Stopping existing containers..."
-docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
+# Use --env-file to ensure variables are loaded
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down 2>/dev/null || true
 
 # Step 4: Build images locally
 echo "Step 4: Building Docker images locally..."
@@ -54,20 +60,20 @@ export COMPOSE_HTTP_TIMEOUT=300
 
 if [ "$ENVIRONMENT" = "test" ]; then
     echo "  Building backend-test..."
-    docker compose -f "$COMPOSE_FILE" build --no-cache backend-test 2>&1 | grep -v -i "pull\|login\|authentication" || \
-        docker compose -f "$COMPOSE_FILE" build backend-test || { echo "❌ Backend build failed"; exit 1; }
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache backend-test 2>&1 | grep -v -i "pull\|login\|authentication" || \
+        docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend-test || { echo "❌ Backend build failed"; exit 1; }
     
     echo "  Building frontend-test..."
-    docker compose -f "$COMPOSE_FILE" build --no-cache frontend-test 2>&1 | grep -v -i "pull\|login\|authentication" || \
-        docker compose -f "$COMPOSE_FILE" build frontend-test || { echo "❌ Frontend build failed"; exit 1; }
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache frontend-test 2>&1 | grep -v -i "pull\|login\|authentication" || \
+        docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build frontend-test || { echo "❌ Frontend build failed"; exit 1; }
 else
     echo "  Building backend-prod..."
-    docker compose -f "$COMPOSE_FILE" build --no-cache backend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || \
-        docker compose -f "$COMPOSE_FILE" build backend-prod || { echo "❌ Backend build failed"; exit 1; }
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache backend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || \
+        docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build backend-prod || { echo "❌ Backend build failed"; exit 1; }
     
     echo "  Building frontend-prod..."
-    docker compose -f "$COMPOSE_FILE" build --no-cache frontend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || \
-        docker compose -f "$COMPOSE_FILE" build frontend-prod || { echo "❌ Frontend build failed"; exit 1; }
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build --no-cache frontend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || \
+        docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build frontend-prod || { echo "❌ Frontend build failed"; exit 1; }
 fi
 
 # Step 5: Check firewall (warn if needed)
@@ -81,8 +87,9 @@ fi
 
 # Step 6: Start services
 echo "Step 6: Starting services..."
-docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -v -i "pull\|login\|authentication" || \
-    docker compose -f "$COMPOSE_FILE" up -d || { echo "❌ Failed to start services"; exit 1; }
+# Use --env-file to ensure variables are loaded
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d 2>&1 | grep -v -i "pull\|login\|authentication" || \
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d || { echo "❌ Failed to start services"; exit 1; }
 
 # Step 7: Wait for services
 echo "Step 7: Waiting for services to initialize..."
@@ -101,7 +108,7 @@ for i in {1..30}; do
     fi
     if [ $i -eq 30 ]; then
         echo "⚠️  Health check failed after 30 attempts"
-        docker compose -f "$COMPOSE_FILE" ps || true
+        docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps || true
         exit 1
     fi
     echo "Waiting... ($i/30)"
@@ -112,7 +119,7 @@ done
 echo ""
 echo "✅ Deployment completed!"
 echo "=========================================="
-docker compose -f "$COMPOSE_FILE" ps
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
 echo ""
 echo "Access your application:"
 if [ "$ENVIRONMENT" = "test" ]; then
