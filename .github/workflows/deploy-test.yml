@@ -58,34 +58,47 @@ jobs:
           host: ${{ secrets.TEST_SERVER_HOST }}
           username: ${{ secrets.TEST_SERVER_USER }}
           password: ${{ secrets.TEST_SERVER_PASSWORD }}
-          script: |
+          envs: GITHUB_TOKEN
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        script: |
             # Configure git to avoid prompts (use token if available)
             export GIT_TERMINAL_PROMPT=0
             export GIT_ASKPASS=/bin/echo
-            GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
             REPO_URL="https://github.com/${{ github.repository }}.git"
             
             # Navigate to repo or clone if it doesn't exist
             if [ ! -d /opt/ticket-manager ]; then
               cd /opt
+              # Try cloning (works for public repos, or if token is set via credential helper)
               if [ -n "$GITHUB_TOKEN" ]; then
-                # Use token in URL for authentication
-                git clone https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.git ticket-manager
+                # Use token as password with git credential helper
+                echo "https://${GITHUB_TOKEN}@github.com" > ~/.git-credentials 2>/dev/null || true
+                git config --global credential.helper store 2>/dev/null || true
+                # Clone using token in URL format
+                git clone https://oauth2:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git ticket-manager 2>&1 || {
+                  # Fallback: try without token (if repo is public)
+                  echo "⚠️ Clone with token failed, trying without token..."
+                  git clone "$REPO_URL" ticket-manager 2>&1 || {
+                    echo "❌ Clone failed - check repository visibility"
+                    exit 1
+                  }
+                }
               else
                 # Try without token (if repo is public)
                 git clone "$REPO_URL" ticket-manager 2>&1 || {
-                  echo "❌ Clone failed - repository might be private"
+                  echo "❌ Clone failed - repository might be private or network issue"
                   exit 1
                 }
               fi
-              cd ticket-manager
+              cd ticket-manager || { echo "❌ Failed to cd into cloned directory"; exit 1; }
             else
               cd /opt/ticket-manager
             fi
             
             # Update remote URL if token is available
             if [ -n "$GITHUB_TOKEN" ]; then
-              git remote set-url origin https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.git 2>/dev/null || true
+              git remote set-url origin https://oauth2:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git 2>/dev/null || true
             fi
             
             # Show current state BEFORE update
@@ -96,7 +109,7 @@ jobs:
             
             # Configure git to use token for authentication (if repo is private)
             if [ -n "$GITHUB_TOKEN" ]; then
-              git remote set-url origin https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+              git remote set-url origin https://oauth2:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git 2>/dev/null || true
             fi
             
             # Force update: remove all local changes and pull latest
@@ -142,9 +155,18 @@ jobs:
               rm -rf ticket-manager
               # Use token if available
               if [ -n "$GITHUB_TOKEN" ]; then
-                git clone https://${GITHUB_TOKEN}@github.com/${{ github.repository }}.git ticket-manager
+                git clone https://oauth2:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git ticket-manager 2>&1 || {
+                  echo "⚠️ Clone with token failed, trying without token..."
+                  git clone "$REPO_URL" ticket-manager 2>&1 || {
+                    echo "❌ Fresh clone failed!"
+                    exit 1
+                  }
+                }
               else
-                git clone https://github.com/${{ github.repository }}.git ticket-manager
+                git clone "$REPO_URL" ticket-manager 2>&1 || {
+                  echo "❌ Fresh clone failed!"
+                  exit 1
+                }
               fi
               cd ticket-manager || { echo "❌ Clone failed!"; exit 1; }
               git checkout develop 2>/dev/null || git checkout main 2>/dev/null || true
