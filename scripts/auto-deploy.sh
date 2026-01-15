@@ -3,6 +3,7 @@
 # Fully automated deployment script
 # Handles everything: setup, build, deploy
 
+# Exit on error for critical commands
 set -e
 
 ENVIRONMENT=${1:-test}
@@ -41,39 +42,18 @@ echo "Checking for local images..."
 BACKEND_EXISTS=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -c "^${BACKEND_IMAGE}$" || echo "0")
 FRONTEND_EXISTS=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -c "^${FRONTEND_IMAGE}$" || echo "0")
 
-if [ "$BACKEND_EXISTS" -gt 0 ]; then
-    echo "✅ Backend image found locally"
-    if [ "$ENVIRONMENT" = "test" ]; then
-        export BACKEND_TEST_IMAGE="$BACKEND_IMAGE"
-    else
-        export BACKEND_PROD_IMAGE="$BACKEND_IMAGE"
-    fi
+# Always unset image variables to force local builds (prevents pull attempts)
+# We'll build locally and tag appropriately
+if [ "$ENVIRONMENT" = "test" ]; then
+    export BACKEND_TEST_IMAGE=""
+    export FRONTEND_TEST_IMAGE=""
 else
-    echo "ℹ️  Backend image not found locally, will build"
-    if [ "$ENVIRONMENT" = "test" ]; then
-        export BACKEND_TEST_IMAGE=""
-    else
-        export BACKEND_PROD_IMAGE=""
-    fi
+    export BACKEND_PROD_IMAGE=""
+    export FRONTEND_PROD_IMAGE=""
 fi
 
-if [ "$FRONTEND_EXISTS" -gt 0 ]; then
-    echo "✅ Frontend image found locally"
-    if [ "$ENVIRONMENT" = "test" ]; then
-        export FRONTEND_TEST_IMAGE="$FRONTEND_IMAGE"
-    else
-        export FRONTEND_PROD_IMAGE="$FRONTEND_IMAGE"
-    fi
-else
-    echo "ℹ️  Frontend image not found locally, will build"
-    if [ "$ENVIRONMENT" = "test" ]; then
-        export FRONTEND_TEST_IMAGE=""
-    else
-        export FRONTEND_PROD_IMAGE=""
-    fi
-fi
-
-echo "Note: Images will be built locally. After GitHub Actions completes, images will be available in registry for future deployments."
+echo "ℹ️  Will build all images locally to avoid pull attempts"
+echo "Note: After GitHub Actions completes, images will be available in registry for future deployments."
 
 # Step 4: Backup database if production
 if [ "$ENVIRONMENT" = "prod" ]; then
@@ -90,31 +70,39 @@ export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-your-org/ticket-manager}"
 # Stop existing containers
 docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
 
-# Build images first (explicitly, to avoid pull attempts)
-echo "Building Docker images (this may take a few minutes)..."
+# Build our custom images first (always build locally, never pull from registry)
+echo "Building custom Docker images (this may take a few minutes)..."
 if [ "$ENVIRONMENT" = "test" ]; then
-    if [ -z "$BACKEND_TEST_IMAGE" ]; then
-        echo "Building backend image..."
-        docker compose -f "$COMPOSE_FILE" build backend-test
-    fi
-    if [ -z "$FRONTEND_TEST_IMAGE" ]; then
-        echo "Building frontend image..."
-        docker compose -f "$COMPOSE_FILE" build frontend-test
-    fi
+    echo "Building backend image..."
+    docker compose -f "$COMPOSE_FILE" build backend-test || {
+        echo "❌ Backend build failed"
+        exit 1
+    }
+    echo "Building frontend image..."
+    docker compose -f "$COMPOSE_FILE" build frontend-test || {
+        echo "❌ Frontend build failed"
+        exit 1
+    }
 else
-    if [ -z "$BACKEND_PROD_IMAGE" ]; then
-        echo "Building backend image..."
-        docker compose -f "$COMPOSE_FILE" build backend-prod
-    fi
-    if [ -z "$FRONTEND_PROD_IMAGE" ]; then
-        echo "Building frontend image..."
-        docker compose -f "$COMPOSE_FILE" build frontend-prod
-    fi
+    echo "Building backend image..."
+    docker compose -f "$COMPOSE_FILE" build backend-prod || {
+        echo "❌ Backend build failed"
+        exit 1
+    }
+    echo "Building frontend image..."
+    docker compose -f "$COMPOSE_FILE" build frontend-prod || {
+        echo "❌ Frontend build failed"
+        exit 1
+    }
 fi
 
-# Start services (no build flag needed, images are already built or exist)
+# Start services - our custom images are built, MySQL will be pulled if needed (public, no auth)
 echo "Starting services..."
-docker compose -f "$COMPOSE_FILE" up -d
+export COMPOSE_HTTP_TIMEOUT=300
+docker compose -f "$COMPOSE_FILE" up -d || {
+    echo "❌ Failed to start services"
+    exit 1
+}
 
 # Step 6: Wait for services
 echo "Step 6: Waiting for services to be ready..."
