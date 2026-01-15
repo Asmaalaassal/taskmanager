@@ -94,16 +94,34 @@ jobs:
             echo "Current commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
             echo "Latest remote commit: $(git rev-parse --short origin/develop 2>/dev/null || git rev-parse --short origin/main 2>/dev/null || echo 'unknown')"
             
-            # If commits don't match, force re-clone
-            LOCAL_COMMIT=$(git rev-parse --short HEAD 2>/dev/null)
-            REMOTE_COMMIT=$(git rev-parse --short origin/develop 2>/dev/null || git rev-parse --short origin/main 2>/dev/null)
-            if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ] && [ -n "$REMOTE_COMMIT" ]; then
-              echo "⚠️ Commits don't match! Forcing fresh clone..."
+            # CRITICAL: Verify commits match after sync
+            LOCAL_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+            REMOTE_COMMIT=$(git ls-remote origin develop 2>/dev/null | cut -f1 | cut -c1-7 || git ls-remote origin main 2>/dev/null | cut -f1 | cut -c1-7 || echo "unknown")
+            
+            echo "=== COMMIT VERIFICATION ==="
+            echo "Local commit: $LOCAL_COMMIT"
+            echo "Remote commit (from GitHub directly): $REMOTE_COMMIT"
+            
+            # If commits don't match OR if local commit is the old one, force re-clone
+            if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ] || [ "$LOCAL_COMMIT" = "8824cb6" ] || [ "$LOCAL_COMMIT" = "unknown" ]; then
+              echo "⚠️ Commits don't match or server is on old commit! Forcing fresh clone..."
               cd /opt
               rm -rf ticket-manager
               git clone https://github.com/${{ github.repository }}.git ticket-manager
               cd ticket-manager
-              echo "Fresh clone commit: $(git rev-parse --short HEAD)"
+              git checkout develop 2>/dev/null || git checkout main 2>/dev/null || true
+              FRESH_COMMIT=$(git rev-parse --short HEAD)
+              echo "✅ Fresh clone complete. New commit: $FRESH_COMMIT"
+              
+              # Verify docker-compose has the fix
+              if grep -q "allowPublicKeyRetrieval=true" docker-compose.test.yml 2>/dev/null || grep -q "allowPublicKeyRetrieval=true" docker-compose.prod.yml 2>/dev/null; then
+                echo "✅ Docker-compose has MySQL fix"
+              else
+                echo "❌ ERROR: Docker-compose still missing MySQL fix after fresh clone!"
+                exit 1
+              fi
+            else
+              echo "✅ Commits match - using existing repository"
             fi
             # Verify script is updated
             echo "=== Script Version Check ==="
