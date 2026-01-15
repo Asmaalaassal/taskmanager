@@ -57,7 +57,17 @@ echo "Step 5: Deploying services..."
 export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-your-org/ticket-manager}"
 
 # Stop existing containers
+echo "Stopping existing containers..."
 docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
+
+# Force recreate MySQL container if it exists (to apply new auth plugin)
+if [ "$ENVIRONMENT" = "test" ]; then
+    echo "Recreating MySQL container with new authentication settings..."
+    docker rm -f ticket-mysql-test 2>/dev/null || true
+else
+    echo "Recreating MySQL container with new authentication settings..."
+    docker rm -f ticket-mysql-prod 2>/dev/null || true
+fi
 
 # Build our custom images first (always build locally, never pull from registry)
 echo "Building custom Docker images (this may take a few minutes)..."
