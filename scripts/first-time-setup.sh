@@ -11,7 +11,12 @@ echo "=========================================="
 
 # Update system
 echo "Updating system..."
-apt-get update
+# Fix any broken repositories first
+if [ -f /etc/apt/sources.list.d/monarx.list ]; then
+    echo "Fixing broken repository..."
+    rm -f /etc/apt/sources.list.d/monarx.list 2>/dev/null || true
+fi
+apt-get update || (echo "Warning: Some repositories failed, continuing..." && apt-get update --allow-releaseinfo-change 2>/dev/null || true)
 apt-get upgrade -y
 
 # Install required packages
