@@ -2,6 +2,18 @@
 
 A modern, full-stack ticket management system built with Spring Boot (backend) and React (frontend), featuring JWT authentication, role-based access control, and database migrations.
 
+## 📚 Documentation
+
+**🇫🇷 Documentation complète en français disponible** : Voir [README_FR.md](./README_FR.md) pour la documentation complète en français, incluant :
+- Guide d'utilisation complet
+- Architecture détaillée
+- Fonctionnalités
+- Guide technique
+- CI/CD et déploiement
+- Tous les détails pour la présentation du projet
+
+**🇬🇧 Complete English documentation** : See below for English documentation.
+
 ## Features
 
 - **Authentication & Authorization**
