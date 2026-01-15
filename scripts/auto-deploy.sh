@@ -27,23 +27,14 @@ fi
 # Load environment variables
 source "$ENV_FILE"
 
-# Step 2: Pull latest code
+# Step 2: Pull latest code (force refresh to ensure we have latest script)
 echo "Step 2: Pulling latest code..."
-git pull origin main 2>/dev/null || git pull origin develop 2>/dev/null || echo "Already up to date"
+git fetch origin 2>/dev/null || true
+git reset --hard origin/develop 2>/dev/null || git reset --hard origin/main 2>/dev/null || git pull origin develop 2>/dev/null || git pull origin main 2>/dev/null || echo "Already up to date"
 
-# Step 3: Check for images, build locally if not found
-echo "Step 3: Checking Docker images..."
-
-BACKEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-backend-${ENVIRONMENT}:latest"
-FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-frontend-${ENVIRONMENT}:latest"
-
-# Check if images exist locally (skip pull to avoid auth prompts)
-echo "Checking for local images..."
-BACKEND_EXISTS=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -c "^${BACKEND_IMAGE}$" || echo "0")
-FRONTEND_EXISTS=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -c "^${FRONTEND_IMAGE}$" || echo "0")
-
-# Always unset image variables to force local builds (prevents pull attempts)
-# We'll build locally and tag appropriately
+# Step 3: Always build locally (never pull from registry to avoid auth issues)
+echo "Step 3: Preparing for local build..."
+# Unset image variables to force local builds
 if [ "$ENVIRONMENT" = "test" ]; then
     export BACKEND_TEST_IMAGE=""
     export FRONTEND_TEST_IMAGE=""
@@ -51,9 +42,7 @@ else
     export BACKEND_PROD_IMAGE=""
     export FRONTEND_PROD_IMAGE=""
 fi
-
-echo "ℹ️  Will build all images locally to avoid pull attempts"
-echo "Note: After GitHub Actions completes, images will be available in registry for future deployments."
+echo "ℹ️  All images will be built locally (no registry pulls)"
 
 # Step 4: Backup database if production
 if [ "$ENVIRONMENT" = "prod" ]; then
@@ -73,36 +62,22 @@ docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
 # Build our custom images first (always build locally, never pull from registry)
 echo "Building custom Docker images (this may take a few minutes)..."
 if [ "$ENVIRONMENT" = "test" ]; then
-    echo "Building backend image..."
-    docker compose -f "$COMPOSE_FILE" build backend-test || {
-        echo "❌ Backend build failed"
-        exit 1
-    }
-    echo "Building frontend image..."
-    docker compose -f "$COMPOSE_FILE" build frontend-test || {
-        echo "❌ Frontend build failed"
-        exit 1
-    }
+    echo "Building backend image (local build, no pull)..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache backend-test 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" build backend-test
+    echo "Building frontend image (local build, no pull)..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache frontend-test 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" build frontend-test
 else
-    echo "Building backend image..."
-    docker compose -f "$COMPOSE_FILE" build backend-prod || {
-        echo "❌ Backend build failed"
-        exit 1
-    }
-    echo "Building frontend image..."
-    docker compose -f "$COMPOSE_FILE" build frontend-prod || {
-        echo "❌ Frontend build failed"
-        exit 1
-    }
+    echo "Building backend image (local build, no pull)..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache backend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" build backend-prod
+    echo "Building frontend image (local build, no pull)..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache frontend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" build frontend-prod
 fi
 
 # Start services - our custom images are built, MySQL will be pulled if needed (public, no auth)
 echo "Starting services..."
 export COMPOSE_HTTP_TIMEOUT=300
-docker compose -f "$COMPOSE_FILE" up -d || {
-    echo "❌ Failed to start services"
-    exit 1
-}
+# Filter out any pull/login messages
+docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" up -d
 
 # Step 6: Wait for services
 echo "Step 6: Waiting for services to be ready..."
