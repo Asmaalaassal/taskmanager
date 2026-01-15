@@ -30,29 +30,18 @@ source "$ENV_FILE"
 echo "Step 2: Pulling latest code..."
 git pull origin main 2>/dev/null || git pull origin develop 2>/dev/null || echo "Already up to date"
 
-# Step 3: Try to pull images from registry, if not available build locally
+# Step 3: Check for images, build locally if not found
 echo "Step 3: Checking Docker images..."
 
 BACKEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-backend-${ENVIRONMENT}:latest"
 FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-frontend-${ENVIRONMENT}:latest"
 
-# Function to safely try pulling an image
-try_pull_image() {
-    local image=$1
-    # Use timeout and redirect all output to avoid prompts
-    timeout 15 docker pull "$image" >/dev/null 2>&1 && return 0 || return 1
-}
+# Check if images exist locally (skip pull to avoid auth prompts)
+echo "Checking for local images..."
+BACKEND_EXISTS=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -c "^${BACKEND_IMAGE}$" || echo "0")
+FRONTEND_EXISTS=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep -c "^${FRONTEND_IMAGE}$" || echo "0")
 
-# Try to pull backend image (non-blocking, fails gracefully)
-echo "Checking for backend image..."
-if try_pull_image "$BACKEND_IMAGE"; then
-    echo "✅ Backend image pulled from registry"
-    if [ "$ENVIRONMENT" = "test" ]; then
-        export BACKEND_TEST_IMAGE="$BACKEND_IMAGE"
-    else
-        export BACKEND_PROD_IMAGE="$BACKEND_IMAGE"
-    fi
-elif docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${BACKEND_IMAGE}$"; then
+if [ "$BACKEND_EXISTS" -gt 0 ]; then
     echo "✅ Backend image found locally"
     if [ "$ENVIRONMENT" = "test" ]; then
         export BACKEND_TEST_IMAGE="$BACKEND_IMAGE"
@@ -60,7 +49,7 @@ elif docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${BACKEND_IMA
         export BACKEND_PROD_IMAGE="$BACKEND_IMAGE"
     fi
 else
-    echo "ℹ️  Backend image not available, will build locally"
+    echo "ℹ️  Backend image not found locally, will build"
     if [ "$ENVIRONMENT" = "test" ]; then
         export BACKEND_TEST_IMAGE=""
     else
@@ -68,16 +57,7 @@ else
     fi
 fi
 
-# Try to pull frontend image (non-blocking, fails gracefully)
-echo "Checking for frontend image..."
-if try_pull_image "$FRONTEND_IMAGE"; then
-    echo "✅ Frontend image pulled from registry"
-    if [ "$ENVIRONMENT" = "test" ]; then
-        export FRONTEND_TEST_IMAGE="$FRONTEND_IMAGE"
-    else
-        export FRONTEND_PROD_IMAGE="$FRONTEND_IMAGE"
-    fi
-elif docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${FRONTEND_IMAGE}$"; then
+if [ "$FRONTEND_EXISTS" -gt 0 ]; then
     echo "✅ Frontend image found locally"
     if [ "$ENVIRONMENT" = "test" ]; then
         export FRONTEND_TEST_IMAGE="$FRONTEND_IMAGE"
@@ -85,13 +65,15 @@ elif docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${FRONTEND_IM
         export FRONTEND_PROD_IMAGE="$FRONTEND_IMAGE"
     fi
 else
-    echo "ℹ️  Frontend image not available, will build locally"
+    echo "ℹ️  Frontend image not found locally, will build"
     if [ "$ENVIRONMENT" = "test" ]; then
         export FRONTEND_TEST_IMAGE=""
     else
         export FRONTEND_PROD_IMAGE=""
     fi
 fi
+
+echo "Note: Images will be built locally. After GitHub Actions completes, images will be available in registry for future deployments."
 
 # Step 4: Backup database if production
 if [ "$ENVIRONMENT" = "prod" ]; then
