@@ -103,8 +103,27 @@ jobs:
           username: ${{ secrets.PROD_SERVER_USER }}
           password: ${{ secrets.PROD_SERVER_PASSWORD }}
           script: |
-            sleep 30
-            curl -f http://localhost:8085/api/auth/me || exit 1
+            echo "Waiting for services to be ready (this may take 2-3 minutes if building images)..."
+            # Check container status first
+            cd /opt/ticket-manager
+            echo "Container status:"
+            docker compose -f docker-compose.prod.yml ps || true
+            
+            # Wait longer for first-time builds (up to 3 minutes)
+            for i in {1..60}; do
+              if curl -f http://localhost:8085/api/auth/me >/dev/null 2>&1; then
+                echo "✅ Health check passed!"
+                exit 0
+              fi
+              if [ $i -eq 60 ]; then
+                echo "⚠️  Health check failed after 2 minutes"
+                echo "Checking container logs..."
+                docker compose -f docker-compose.prod.yml logs --tail=50 backend-prod || true
+                exit 1
+              fi
+              echo "Waiting for backend... ($i/60)"
+              sleep 2
+            done
 
       - name: Create deployment tag
         uses: actions/github-script@v7
