@@ -24,6 +24,7 @@ spring:
 
 server:
   port: 8085
+  address: 0.0.0.0  # Bind to all interfaces, not just localhost
 
 jwt:
   secret: your-secret-key-change-this-in-production-to-a-long-random-string
