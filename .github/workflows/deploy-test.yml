@@ -59,16 +59,52 @@ jobs:
           username: ${{ secrets.TEST_SERVER_USER }}
           password: ${{ secrets.TEST_SERVER_PASSWORD }}
           script: |
-            cd /opt/ticket-manager || (cd /opt && git clone https://github.com/${{ github.repository }}.git ticket-manager && cd ticket-manager)
-            # Force hard reset to get latest code (discard any local changes)
-            git fetch origin --prune --force
-            git fetch origin develop:develop --force 2>/dev/null || git fetch origin main:main --force 2>/dev/null || true
-            git checkout develop 2>/dev/null || git checkout main 2>/dev/null || true
-            git reset --hard origin/develop 2>/dev/null || git reset --hard origin/main 2>/dev/null || true
-            git clean -fd
-            # Verify we have the latest commit
-            echo "Current commit: $(git rev-parse --short HEAD)"
-            echo "Latest commit on GitHub: $(git rev-parse --short origin/develop 2>/dev/null || git rev-parse --short origin/main 2>/dev/null || echo 'unknown')"
+            # Navigate to repo or clone if it doesn't exist
+            if [ ! -d /opt/ticket-manager ]; then
+              cd /opt && git clone https://github.com/${{ github.repository }}.git ticket-manager && cd ticket-manager
+            else
+              cd /opt/ticket-manager
+            fi
+            
+            # Show current state BEFORE update
+            echo "=== BEFORE UPDATE ==="
+            echo "Current branch: $(git branch --show-current)"
+            echo "Current commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+            echo "Remote URL: $(git remote get-url origin 2>/dev/null || echo 'none')"
+            
+            # Force update: remove all local changes and pull latest
+            git fetch origin --prune --force 2>&1
+            git fetch origin develop:develop --force 2>&1 || git fetch origin main:main --force 2>&1 || true
+            
+            # Switch to correct branch
+            git checkout develop 2>/dev/null || git checkout main 2>/dev/null || git checkout -b develop origin/develop 2>/dev/null || true
+            
+            # Hard reset to match remote exactly
+            git reset --hard origin/develop 2>&1 || git reset --hard origin/main 2>&1 || {
+              echo "⚠️ Reset failed, trying full refresh..."
+              git fetch origin develop:develop --force 2>&1 || git fetch origin main:main --force 2>&1 || true
+              git reset --hard origin/develop 2>&1 || git reset --hard origin/main 2>&1 || true
+            }
+            
+            # Clean untracked files
+            git clean -fdx 2>&1 || true
+            
+            # Verify AFTER update
+            echo "=== AFTER UPDATE ==="
+            echo "Current commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+            echo "Latest remote commit: $(git rev-parse --short origin/develop 2>/dev/null || git rev-parse --short origin/main 2>/dev/null || echo 'unknown')"
+            
+            # If commits don't match, force re-clone
+            LOCAL_COMMIT=$(git rev-parse --short HEAD 2>/dev/null)
+            REMOTE_COMMIT=$(git rev-parse --short origin/develop 2>/dev/null || git rev-parse --short origin/main 2>/dev/null)
+            if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ] && [ -n "$REMOTE_COMMIT" ]; then
+              echo "⚠️ Commits don't match! Forcing fresh clone..."
+              cd /opt
+              rm -rf ticket-manager
+              git clone https://github.com/${{ github.repository }}.git ticket-manager
+              cd ticket-manager
+              echo "Fresh clone commit: $(git rev-parse --short HEAD)"
+            fi
             # Verify script is updated
             echo "=== Script Version Check ==="
             if grep -q "Preparing for local build" scripts/auto-deploy.sh; then
