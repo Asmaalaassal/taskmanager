@@ -19,7 +19,18 @@ cd "$APP_DIR" || { echo "❌ Failed to cd to $APP_DIR"; exit 1; }
 # Step 1: Setup environment if needed
 if [ ! -f "$ENV_FILE" ]; then
     echo "Step 1: Creating environment file..."
-    "${APP_DIR}/scripts/auto-setup.sh" "$ENVIRONMENT" || { echo "❌ Setup failed"; exit 1; }
+    if [ -f "${APP_DIR}/scripts/auto-setup.sh" ]; then
+        "${APP_DIR}/scripts/auto-setup.sh" "$ENVIRONMENT" || { echo "❌ Setup failed"; exit 1; }
+    else
+        echo "❌ auto-setup.sh not found. Cannot create environment file."
+        exit 1
+    fi
+fi
+
+# Verify environment file exists
+if [ ! -f "$ENV_FILE" ]; then
+    echo "❌ Environment file $ENV_FILE still does not exist after setup attempt"
+    exit 1
 fi
 
 # Load environment variables
