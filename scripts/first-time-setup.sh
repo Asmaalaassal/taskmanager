@@ -16,14 +16,27 @@ if [ -f /etc/apt/sources.list.d/monarx.list ]; then
     echo "Fixing broken repository..."
     rm -f /etc/apt/sources.list.d/monarx.list 2>/dev/null || true
 fi
+
+# Fix broken package states
+echo "Fixing broken package states..."
+dpkg --configure -a 2>/dev/null || true
+apt-get install -f -y 2>/dev/null || true
+
 apt-get update || (echo "Warning: Some repositories failed, continuing..." && apt-get update --allow-releaseinfo-change 2>/dev/null || true)
 apt-get upgrade -y
 
 # Install required packages
 echo "Installing packages..."
+
+# Remove conflicting docker-compose packages if they exist
+echo "Removing conflicting docker-compose packages..."
+dpkg --remove docker-compose-v2 2>/dev/null || true
+apt-get remove -y docker-compose-v2 2>/dev/null || true
+
+# Install Docker and docker-compose-plugin (newer method)
 apt-get install -y \
     docker.io \
-    docker-compose \
+    docker-compose-plugin \
     git \
     curl \
     wget \

@@ -76,7 +76,7 @@ fi
 # Step 4: Backup database if production
 if [ "$ENVIRONMENT" = "prod" ]; then
     echo "Step 4: Creating database backup..."
-    if docker-compose -f "$COMPOSE_FILE" ps mysql-prod 2>/dev/null | grep -q "Up"; then
+    if docker compose -f "$COMPOSE_FILE" ps mysql-prod 2>/dev/null | grep -q "Up"; then
         "${APP_DIR}/scripts/backup-database.sh" prod || echo "⚠️  Backup failed, continuing..."
     fi
 fi
@@ -86,10 +86,10 @@ echo "Step 5: Deploying services..."
 export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-your-org/ticket-manager}"
 
 # Stop existing containers
-docker-compose -f "$COMPOSE_FILE" down 2>/dev/null || true
+docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
 
 # Start services (will build if images don't exist)
-docker-compose -f "$COMPOSE_FILE" up -d --build
+docker compose -f "$COMPOSE_FILE" up -d --build
 
 # Step 6: Wait for services
 echo "Step 6: Waiting for services to be ready..."
@@ -120,7 +120,7 @@ done
 echo ""
 echo "Step 8: Deployment Status"
 echo "=========================================="
-docker-compose -f "$COMPOSE_FILE" ps
+docker compose -f "$COMPOSE_FILE" ps
 
 echo ""
 echo "✅ Deployment completed!"
