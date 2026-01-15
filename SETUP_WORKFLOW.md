@@ -62,13 +62,13 @@ After cloning, follow the rest of QUICK_START.md to:
 
 ## Quick Checklist
 
-- [ ] Commit all files locally
-- [ ] Push to `main` branch
-- [ ] Create and push `develop` branch
-- [ ] Clone on VPS server
-- [ ] Run first-time-setup.sh
-- [ ] Configure GitHub Secrets
-- [ ] Push to develop to trigger test deployment
+- [X] Commit all files locally
+- [X] Push to `main` branch
+- [X] Create and push `develop` branch
+- [X] Clone on VPS server
+- [X] Run first-time-setup.sh
+- [X] Configure GitHub Secrets
+- [X] Push to develop to trigger test deployment
 
 ## What Gets Pushed?
 
