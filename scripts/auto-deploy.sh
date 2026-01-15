@@ -30,25 +30,25 @@ source "$ENV_FILE"
 echo "Step 2: Pulling latest code..."
 git pull origin main 2>/dev/null || git pull origin develop 2>/dev/null || echo "Already up to date"
 
-# Step 3: Try to pull images, if they don't exist, build locally
+# Step 3: Check if images exist, if not build locally
 echo "Step 3: Checking Docker images..."
 
-# Check if we can pull from registry (skip if images don't exist - will build locally)
+# For first deployment, always build locally (images don't exist yet)
+# Skip pull attempt to avoid authentication prompts
 BACKEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-backend-${ENVIRONMENT}:latest"
 FRONTEND_IMAGE="ghcr.io/${GITHUB_REPOSITORY:-your-org/ticket-manager}-frontend-${ENVIRONMENT}:latest"
 
-# Try to pull backend image (suppress all output and errors, skip if not authenticated)
-echo "Checking for backend image in registry..."
-# Use --quiet flag and redirect stderr to avoid authentication prompts
-if timeout 10 docker pull --quiet "$BACKEND_IMAGE" 2>/dev/null; then
-    echo "✅ Backend image found in registry"
+# Check if images exist locally first
+echo "Checking for local images..."
+if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${BACKEND_IMAGE}$"; then
+    echo "✅ Backend image found locally"
     if [ "$ENVIRONMENT" = "test" ]; then
         export BACKEND_TEST_IMAGE="$BACKEND_IMAGE"
     else
         export BACKEND_PROD_IMAGE="$BACKEND_IMAGE"
     fi
 else
-    echo "ℹ️  Backend image not in registry, will build locally"
+    echo "ℹ️  Backend image not found, will build locally"
     if [ "$ENVIRONMENT" = "test" ]; then
         export BACKEND_TEST_IMAGE=""
     else
@@ -56,18 +56,15 @@ else
     fi
 fi
 
-# Try to pull frontend image (suppress all output and errors, skip if not authenticated)
-echo "Checking for frontend image in registry..."
-# Use --quiet flag and redirect stderr to avoid authentication prompts
-if timeout 10 docker pull --quiet "$FRONTEND_IMAGE" 2>/dev/null; then
-    echo "✅ Frontend image found in registry"
+if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^${FRONTEND_IMAGE}$"; then
+    echo "✅ Frontend image found locally"
     if [ "$ENVIRONMENT" = "test" ]; then
         export FRONTEND_TEST_IMAGE="$FRONTEND_IMAGE"
     else
         export FRONTEND_PROD_IMAGE="$FRONTEND_IMAGE"
     fi
 else
-    echo "ℹ️  Frontend image not in registry, will build locally"
+    echo "ℹ️  Frontend image not found, will build locally"
     if [ "$ENVIRONMENT" = "test" ]; then
         export FRONTEND_TEST_IMAGE=""
     else
