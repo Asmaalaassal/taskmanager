@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # Fully automated deployment script
-# Handles everything: setup, build, deploy
+# Builds and deploys the application locally (no registry pulls)
 
-# Exit on error for critical commands
 set -e
 
 ENVIRONMENT=${1:-test}
@@ -15,117 +14,85 @@ echo "=========================================="
 echo "Automated Deployment: ${ENVIRONMENT}"
 echo "=========================================="
 
-cd "$APP_DIR"
+cd "$APP_DIR" || { echo "❌ Failed to cd to $APP_DIR"; exit 1; }
 
-# Step 1: Run auto-setup if needed
-echo "Step 1: Checking environment setup..."
+# Step 1: Setup environment if needed
 if [ ! -f "$ENV_FILE" ]; then
-    echo "Environment file not found. Running auto-setup..."
-    "${APP_DIR}/scripts/auto-setup.sh" "$ENVIRONMENT"
+    echo "Step 1: Creating environment file..."
+    "${APP_DIR}/scripts/auto-setup.sh" "$ENVIRONMENT" || { echo "❌ Setup failed"; exit 1; }
 fi
 
 # Load environment variables
-source "$ENV_FILE"
+source "$ENV_FILE" || { echo "❌ Failed to load $ENV_FILE"; exit 1; }
 
-# Step 2: Pull latest code (force refresh to ensure we have latest script)
-echo "Step 2: Pulling latest code..."
-git fetch origin 2>/dev/null || true
-git reset --hard origin/develop 2>/dev/null || git reset --hard origin/main 2>/dev/null || git pull origin develop 2>/dev/null || git pull origin main 2>/dev/null || echo "Already up to date"
-
-# Step 3: Always build locally (never pull from registry to avoid auth issues)
-echo "Step 3: Preparing for local build..."
-# Unset image variables to force local builds
-if [ "$ENVIRONMENT" = "test" ]; then
-    export BACKEND_TEST_IMAGE=""
-    export FRONTEND_TEST_IMAGE=""
-else
-    export BACKEND_PROD_IMAGE=""
-    export FRONTEND_PROD_IMAGE=""
-fi
-echo "ℹ️  All images will be built locally (no registry pulls)"
-
-# Step 4: Backup database if production
+# Step 2: Backup database (production only)
 if [ "$ENVIRONMENT" = "prod" ]; then
-    echo "Step 4: Creating database backup..."
+    echo "Step 2: Creating database backup..."
     if docker compose -f "$COMPOSE_FILE" ps mysql-prod 2>/dev/null | grep -q "Up"; then
         "${APP_DIR}/scripts/backup-database.sh" prod || echo "⚠️  Backup failed, continuing..."
     fi
 fi
 
-# Step 5: Deploy
-echo "Step 5: Deploying services..."
-export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-your-org/ticket-manager}"
-
-# Stop existing containers
-echo "Stopping existing containers..."
+# Step 3: Stop existing containers
+echo "Step 3: Stopping existing containers..."
 docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
 
-# Force recreate MySQL container if it exists (to apply new auth plugin)
-if [ "$ENVIRONMENT" = "test" ]; then
-    echo "Recreating MySQL container with new authentication settings..."
-    docker rm -f ticket-mysql-test 2>/dev/null || true
-else
-    echo "Recreating MySQL container with new authentication settings..."
-    docker rm -f ticket-mysql-prod 2>/dev/null || true
-fi
-
-# Build our custom images first (always build locally, never pull from registry)
-echo "Building custom Docker images (this may take a few minutes)..."
-if [ "$ENVIRONMENT" = "test" ]; then
-    echo "Building backend image (local build, no pull)..."
-    docker compose -f "$COMPOSE_FILE" build --no-cache backend-test 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" build backend-test
-    echo "Building frontend image (local build, no pull)..."
-    docker compose -f "$COMPOSE_FILE" build --no-cache frontend-test 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" build frontend-test
-else
-    echo "Building backend image (local build, no pull)..."
-    docker compose -f "$COMPOSE_FILE" build --no-cache backend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" build backend-prod
-    echo "Building frontend image (local build, no pull)..."
-    docker compose -f "$COMPOSE_FILE" build --no-cache frontend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" build frontend-prod
-fi
-
-# Start services - our custom images are built, MySQL will be pulled if needed (public, no auth)
-echo "Starting services..."
+# Step 4: Build images locally
+echo "Step 4: Building Docker images locally..."
 export COMPOSE_HTTP_TIMEOUT=300
-# Filter out any pull/login messages
-docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -v -i "pull\|login\|authentication" || docker compose -f "$COMPOSE_FILE" up -d
+
+if [ "$ENVIRONMENT" = "test" ]; then
+    echo "  Building backend-test..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache backend-test 2>&1 | grep -v -i "pull\|login\|authentication" || \
+        docker compose -f "$COMPOSE_FILE" build backend-test || { echo "❌ Backend build failed"; exit 1; }
+    
+    echo "  Building frontend-test..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache frontend-test 2>&1 | grep -v -i "pull\|login\|authentication" || \
+        docker compose -f "$COMPOSE_FILE" build frontend-test || { echo "❌ Frontend build failed"; exit 1; }
+else
+    echo "  Building backend-prod..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache backend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || \
+        docker compose -f "$COMPOSE_FILE" build backend-prod || { echo "❌ Backend build failed"; exit 1; }
+    
+    echo "  Building frontend-prod..."
+    docker compose -f "$COMPOSE_FILE" build --no-cache frontend-prod 2>&1 | grep -v -i "pull\|login\|authentication" || \
+        docker compose -f "$COMPOSE_FILE" build frontend-prod || { echo "❌ Frontend build failed"; exit 1; }
+fi
+
+# Step 5: Start services
+echo "Step 5: Starting services..."
+docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -v -i "pull\|login\|authentication" || \
+    docker compose -f "$COMPOSE_FILE" up -d || { echo "❌ Failed to start services"; exit 1; }
 
 # Step 6: Wait for services
-echo "Step 6: Waiting for services to be ready..."
+echo "Step 6: Waiting for services to initialize..."
 sleep 15
 
 # Step 7: Health check
 echo "Step 7: Running health checks..."
-if [ "$ENVIRONMENT" = "test" ]; then
-    HEALTH_URL="http://localhost:8086/api/auth/me"
-else
-    HEALTH_URL="http://localhost:8085/api/auth/me"
-fi
+HEALTH_URL="http://localhost:8086/api/auth/me"
+[ "$ENVIRONMENT" = "prod" ] && HEALTH_URL="http://localhost:8085/api/auth/me"
 
 for i in {1..30}; do
-    # Check if we get ANY HTTP response (even 403/401 means server is running)
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
-    if [ "$HTTP_CODE" != "000" ] && [ "$HTTP_CODE" != "" ]; then
-        echo "✅ Health check passed! (Server responding with HTTP $HTTP_CODE)"
+    if [ "$HTTP_CODE" != "000" ] && [ -n "$HTTP_CODE" ]; then
+        echo "✅ Health check passed! (HTTP $HTTP_CODE)"
         break
     fi
     if [ $i -eq 30 ]; then
         echo "⚠️  Health check failed after 30 attempts"
-        echo "Checking container status..."
         docker compose -f "$COMPOSE_FILE" ps || true
-    else
-        echo "Waiting for service... ($i/30)"
-        sleep 2
+        exit 1
     fi
+    echo "Waiting... ($i/30)"
+    sleep 2
 done
 
 # Step 8: Show status
 echo ""
-echo "Step 8: Deployment Status"
+echo "✅ Deployment completed!"
 echo "=========================================="
 docker compose -f "$COMPOSE_FILE" ps
-
-echo ""
-echo "✅ Deployment completed!"
 echo ""
 echo "Access your application:"
 if [ "$ENVIRONMENT" = "test" ]; then
