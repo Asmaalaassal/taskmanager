@@ -11,8 +11,6 @@ const api = axios.create({
   baseURL: API_URL,
 })
 
-export default api
-
 // Request interceptor to add token
 api.interceptors.request.use(
   (config) => {
