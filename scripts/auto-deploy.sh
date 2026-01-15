@@ -90,8 +90,8 @@ export GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-your-org/ticket-manager}"
 # Stop existing containers
 docker compose -f "$COMPOSE_FILE" down 2>/dev/null || true
 
-# Start services (will build if images don't exist)
-docker compose -f "$COMPOSE_FILE" up -d --build
+# Start services (will build if images don't exist, never pull to avoid auth prompts)
+docker compose -f "$COMPOSE_FILE" up -d --build --pull never
 
 # Step 6: Wait for services
 echo "Step 6: Waiting for services to be ready..."
