@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import api from '../api/axios'
 
 const AgentManagement = () => {
   const [agents, setAgents] = useState([])
@@ -24,7 +24,7 @@ const AgentManagement = () => {
 
   const fetchAgents = async () => {
     try {
-      const response = await axios.get('http://localhost:8085/api/agents')
+      const response = await api.get('/agents')
       setAgents(response.data)
     } catch (error) {
       console.error('Failed to fetch agents:', error)
@@ -35,7 +35,7 @@ const AgentManagement = () => {
 
   const fetchProblemTypes = async () => {
     try {
-      const response = await axios.get('http://localhost:8085/api/problem-types')
+      const response = await api.get('/problem-types')
       setProblemTypes(response.data)
     } catch (error) {
       console.error('Failed to fetch problem types:', error)
@@ -48,7 +48,7 @@ const AgentManagement = () => {
     setSubmitting(true)
 
     try {
-      await axios.post('http://localhost:8085/api/agents', formData)
+      await api.post('/agents', formData)
       setShowCreateForm(false)
       setFormData({ name: '', email: '', password: '', specializationIds: [] })
       fetchAgents()

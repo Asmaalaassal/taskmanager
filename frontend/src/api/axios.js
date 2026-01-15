@@ -1,8 +1,17 @@
 import axios from 'axios'
 
+// Get API URL from environment variable or use default
+// Vite uses VITE_ prefix for environment variables
+const API_URL = import.meta.env.VITE_API_URL || 
+                (import.meta.env.MODE === 'production' 
+                  ? 'http://147.79.101.138:8085/api' 
+                  : 'http://localhost:8085/api')
+
 const api = axios.create({
-  baseURL: 'http://localhost:8085/api',
+  baseURL: API_URL,
 })
+
+export default api
 
 // Request interceptor to add token
 api.interceptors.request.use(

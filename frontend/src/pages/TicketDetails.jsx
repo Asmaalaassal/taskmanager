@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import axios from 'axios'
+import api from '../api/axios'
 
 const TicketDetails = () => {
   const { id } = useParams()
@@ -28,7 +28,7 @@ const TicketDetails = () => {
 
   const fetchTicket = async () => {
     try {
-      const response = await axios.get(`http://localhost:8085/api/tickets/${id}`)
+      const response = await api.get(`/tickets/${id}`)
       setTicket(response.data)
       setStatus(response.data.status)
       setPriority(response.data.priority)
@@ -53,7 +53,7 @@ const TicketDetails = () => {
     setUpdating(true)
     setError('')
     try {
-      const response = await axios.put(`http://localhost:8085/api/tickets/${id}`, {
+      const response = await api.put(`/tickets/${id}`, {
         status,
         priority,
       })
@@ -73,7 +73,7 @@ const TicketDetails = () => {
     setAssigning(true)
     setError('')
     try {
-      const response = await axios.put(`http://localhost:8085/api/tickets/${id}/assign`, {
+      const response = await api.put(`/tickets/${id}/assign`, {
         agentId: parseInt(agentId),
       })
       setTicket(response.data)
@@ -90,7 +90,7 @@ const TicketDetails = () => {
       return
     }
     try {
-      await axios.delete(`http://localhost:8085/api/tickets/${id}`)
+      await api.delete(`/tickets/${id}`)
       navigate('/tickets')
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete ticket')
@@ -105,7 +105,7 @@ const TicketDetails = () => {
     setSubmittingReply(true)
     setError('')
     try {
-      await axios.post(`http://localhost:8085/api/tickets/${id}/replies`, {
+      await api.post(`/tickets/${id}/replies`, {
         content: replyContent,
       })
       setReplyContent('')

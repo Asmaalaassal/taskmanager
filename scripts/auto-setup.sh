@@ -32,7 +32,7 @@ if [ ! -f "$ENV_FILE" ]; then
     MYSQL_PASSWORD=$(generate_secret)
     JWT_SECRET=$(generate_jwt_secret)
     
-    # Determine ports based on environment
+    # Determine ports and API URL based on environment
     if [ "$ENVIRONMENT" = "test" ]; then
         BACKEND_PORT=8086
         API_URL="http://147.79.101.138:8086/api"

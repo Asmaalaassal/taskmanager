@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import axios from 'axios'
+import api from '../api/axios'
 
 const TicketList = () => {
   const [tickets, setTickets] = useState([])
@@ -27,7 +27,7 @@ const TicketList = () => {
 
   const fetchProblemTypes = async () => {
     try {
-      const response = await axios.get('http://localhost:8085/api/problem-types')
+      const response = await api.get('/problem-types')
       setProblemTypes(response.data)
     } catch (error) {
       console.error('Failed to fetch problem types:', error)
@@ -42,7 +42,7 @@ const TicketList = () => {
       if (filters.problemTypeId) params.append('problemTypeId', filters.problemTypeId)
       if (filters.isPublic !== '') params.append('isPublic', filters.isPublic)
 
-      const response = await axios.get(`http://localhost:8085/api/tickets?${params.toString()}`)
+      const response = await api.get(`/tickets?${params.toString()}`)
       setTickets(response.data)
     } catch (error) {
       console.error('Failed to fetch tickets:', error)

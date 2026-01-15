@@ -1,5 +1,5 @@
 import { createContext, useState, useContext, useEffect } from 'react'
-import axios from 'axios'
+import api from '../api/axios'
 
 const AuthContext = createContext()
 
@@ -27,24 +27,22 @@ export const AuthProvider = ({ children }) => {
 
   const fetchCurrentUser = async () => {
     try {
-      const response = await axios.get('http://localhost:8085/api/auth/me')
+      const response = await api.get('/auth/me')
       setUser(response.data)
     } catch (error) {
       localStorage.removeItem('token')
-      delete axios.defaults.headers.common['Authorization']
     } finally {
       setLoading(false)
     }
   }
 
   const login = async (email, password) => {
-    const response = await axios.post('http://localhost:8085/api/auth/login', {
+    const response = await api.post('/auth/login', {
       email,
       password,
     })
     const { token } = response.data
     localStorage.setItem('token', token)
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
     setUser(response.data)
     return response.data
   }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import api from '../api/axios'
 
 const CreateTicket = () => {
   const [title, setTitle] = useState('')
@@ -19,7 +19,7 @@ const CreateTicket = () => {
 
   const fetchProblemTypes = async () => {
     try {
-      const response = await axios.get('http://localhost:8085/api/problem-types')
+      const response = await api.get('/problem-types')
       setProblemTypes(response.data)
       if (response.data.length > 0) {
         setProblemTypeId(response.data[0].id)
@@ -35,7 +35,7 @@ const CreateTicket = () => {
     setLoading(true)
 
     try {
-      await axios.post('http://localhost:8085/api/tickets', {
+      await api.post('/tickets', {
         title,
         description,
         priority,

@@ -65,7 +65,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend-prod:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend-prod:${{ github.sha }}
           build-args: |
-            REACT_APP_API_URL=${{ secrets.API_URL }}
+            VITE_API_URL=${{ secrets.API_URL || 'http://147.79.101.138:8085/api' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

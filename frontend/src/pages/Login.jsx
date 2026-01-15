@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import axios from 'axios'
+import api from '../api/axios'
 
 const Login = () => {
   const [isRegister, setIsRegister] = useState(false)
@@ -20,7 +20,7 @@ const Login = () => {
 
     try {
       if (isRegister) {
-        await axios.post('http://localhost:8085/api/auth/register', {
+        await api.post('/auth/register', {
           name,
           email,
           password,

@@ -48,7 +48,7 @@ jobs:
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend-test:latest
           build-args: |
-            REACT_APP_API_URL=${{ secrets.TEST_API_URL || 'http://localhost:8086/api' }}
+            VITE_API_URL=${{ secrets.TEST_API_URL || 'http://147.79.101.138:8086/api' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
