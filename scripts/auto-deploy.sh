@@ -59,17 +59,26 @@ else
         docker compose -f "$COMPOSE_FILE" build frontend-prod || { echo "❌ Frontend build failed"; exit 1; }
 fi
 
-# Step 5: Start services
-echo "Step 5: Starting services..."
+# Step 5: Check firewall (warn if needed)
+echo "Step 5: Checking firewall..."
+if command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
+    if ! ufw status | grep -q "8086"; then
+        echo "⚠️  WARNING: Port 8086 may not be open in firewall!"
+        echo "   Run: sudo ufw allow 8086/tcp"
+    fi
+fi
+
+# Step 6: Start services
+echo "Step 6: Starting services..."
 docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -v -i "pull\|login\|authentication" || \
     docker compose -f "$COMPOSE_FILE" up -d || { echo "❌ Failed to start services"; exit 1; }
 
-# Step 6: Wait for services
-echo "Step 6: Waiting for services to initialize..."
+# Step 7: Wait for services
+echo "Step 7: Waiting for services to initialize..."
 sleep 15
 
-# Step 7: Health check
-echo "Step 7: Running health checks..."
+# Step 8: Health check
+echo "Step 8: Running health checks..."
 HEALTH_URL="http://localhost:8086/api/auth/me"
 [ "$ENVIRONMENT" = "prod" ] && HEALTH_URL="http://localhost:8085/api/auth/me"
 
@@ -88,7 +97,7 @@ for i in {1..30}; do
     sleep 2
 done
 
-# Step 8: Show status
+# Step 9: Show status
 echo ""
 echo "✅ Deployment completed!"
 echo "=========================================="
@@ -102,3 +111,7 @@ else
     echo "  Frontend: http://147.79.101.138"
     echo "  Backend:  http://147.79.101.138:8085/api"
 fi
+echo ""
+echo "⚠️  If you can't access from outside, check firewall:"
+echo "   Run: ./scripts/fix-firewall.sh"
+echo "   Or: sudo ufw allow 8086/tcp"
