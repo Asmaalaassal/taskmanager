@@ -100,9 +100,21 @@ jobs:
             # Make scripts executable
             chmod +x scripts/*.sh 2>/dev/null || true
             
-            # Deploy
+            # Deploy - auto-setup will create .env.test if it doesn't exist
             export GITHUB_REPOSITORY=${{ github.repository }}
-            ./scripts/auto-setup.sh test || true
+            
+            # Ensure environment file exists
+            if [ ! -f .env.test ]; then
+              echo "⚠️  .env.test not found. Running auto-setup..."
+              ./scripts/auto-setup.sh test || {
+                echo "❌ Failed to create .env.test"
+                exit 1
+              }
+            else
+              echo "✅ .env.test exists"
+            fi
+            
+            # Deploy
             ./scripts/auto-deploy.sh test
 
       - name: Health check
