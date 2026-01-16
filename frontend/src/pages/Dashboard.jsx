@@ -17,7 +17,7 @@ const Dashboard = () => {
         <aside className="w-64 bg-white shadow-lg min-h-screen">
           <div className="p-6">
             <h1 className="text-2xl font-bold text-gray-800 mb-8">
-              Ticket Manager
+              Ticket Manager By Asmaa & Zakia
             </h1>
             <nav className="space-y-2">
               <button
