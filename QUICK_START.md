@@ -12,9 +12,9 @@ ssh root@147.79.101.138
 
 cd /opt
 # Use SSH if you have SSH keys set up:
-# git clone git@github.com:hassanlagmouri/spring_taskmanager.git ticket-manager
+# git clone git@github.com:Asmaalaassal/taskmanager.git ticket-manager
 # OR use HTTPS with Personal Access Token (see TROUBLESHOOTING.md)
-git clone https://github.com/hassanlagmouri/spring_taskmanager.git ticket-manager
+git clone https://github.com/Asmaalaassal/taskmanager.git ticket-manager
 cd ticket-manager
 chmod +x scripts/*.sh
 ./scripts/first-time-setup.sh

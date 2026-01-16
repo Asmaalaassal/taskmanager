@@ -11,7 +11,7 @@ GitHub no longer accepts passwords for Git operations. Use one of these solution
 If you have SSH keys set up with GitHub:
 
 ```bash
-git clone git@github.com:hassanlagmouri/spring_taskmanager.git ticket-manager
+git clone git@github.com:Asmaalaassal/taskmanager.git ticket-manager
 ```
 
 ### Solution 2: Use Personal Access Token (PAT)
@@ -26,8 +26,8 @@ git clone git@github.com:hassanlagmouri/spring_taskmanager.git ticket-manager
 
 2. **Use the token as password:**
    ```bash
-   git clone https://github.com/hassanlagmouri/spring_taskmanager.git ticket-manager
-   # Username: hassanlagmouri
+   git clone https://github.com/Asmaalaassal/taskmanager.git ticket-manager
+   # Username: Asmaalaassal
    # Password: <paste your token here>
    ```
 
@@ -36,7 +36,7 @@ git clone git@github.com:hassanlagmouri/spring_taskmanager.git ticket-manager
 If your repository is public, you can clone without authentication:
 
 ```bash
-git clone https://github.com/hassanlagmouri/spring_taskmanager.git ticket-manager
+git clone https://github.com/Asmaalaassal/taskmanager.git ticket-manager
 ```
 
 ### Solution 4: Use GitHub CLI
@@ -49,7 +49,7 @@ apt-get install -y gh
 gh auth login
 
 # Clone
-gh repo clone hassanlagmouri/spring_taskmanager ticket-manager
+gh repo clone Asmaalaassal/taskmanager ticket-manager
 ```
 
 ## After Cloning
